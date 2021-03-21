@@ -13,7 +13,7 @@ namespace MailChimpSyncerSharp
         private IMailChimpManager _mailChimpManager;
         private Action<string, bool> _loggerAction;
         
-        private readonly (string FieldName, Func<Contact, string> ContactValue)[] _mergeFieldsToSync = new[]
+        private List<(string FieldName, Func<Contact, string> ContactValue)> _mergeFieldsToSync = new List<(string, Func<Contact, string>)>
         {
             ("FNAME", new Func<Contact, string>(c => c.FirstName)),
             ("LNAME", new Func<Contact, string>(c => c.LastName))
@@ -41,6 +41,23 @@ namespace MailChimpSyncerSharp
         /// <returns></returns>
         public async Task UpdateMailChimp(IEnumerable<Contact> contactsToSync, string tagName, string listName)
         {
+            //Add additional merge fields to list to sync
+            var additionalFieldKeys = contactsToSync.SelectMany(x => x.AdditionalMergeFields.Keys).Distinct();
+            foreach (var key in additionalFieldKeys)
+            {
+                if (!_mergeFieldsToSync.Any(x => x.FieldName == key))
+                {
+                    _mergeFieldsToSync.Add((key, new Func<Contact, string>(c =>
+                    {
+                        if (c.AdditionalMergeFields != null && c.AdditionalMergeFields.ContainsKey(key))
+                        {
+                            return c.AdditionalMergeFields[key];
+                        }
+                        return null;
+                    })));
+                }
+            }
+            
             //Get all lists
             var mailChimpListCollection = await _mailChimpManager.Lists.GetAllAsync();
 
@@ -202,7 +219,7 @@ namespace MailChimpSyncerSharp
         {
             if (GetMergeFieldValue(mailChimpContact, mergeFieldName) != value)
             {
-                mailChimpContact.MergeFields[mergeFieldName] = value;
+                mailChimpContact.MergeFields[mergeFieldName] = value ?? string.Empty; //We clear the value in MailChimp by setting to an empty string, not null
                 return true;
             }
 
@@ -211,7 +228,15 @@ namespace MailChimpSyncerSharp
 
         private string GetMergeFieldValue(Member mailChimpContact, string mergeFieldName)
         {
-            return mailChimpContact.MergeFields.ContainsKey(mergeFieldName) ? mailChimpContact.MergeFields[mergeFieldName] as string : null;
+            string value = mailChimpContact.MergeFields.ContainsKey(mergeFieldName) ? mailChimpContact.MergeFields[mergeFieldName] as string : null;
+
+            //MailChimp will return an empty string for empty fields, whereas empty fields will be null for us
+            if (string.IsNullOrEmpty(value))
+            {
+                return null;
+            }
+
+            return value;
         }
 
         #endregion

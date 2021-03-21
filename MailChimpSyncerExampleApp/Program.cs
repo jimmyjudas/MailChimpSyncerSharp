@@ -48,6 +48,12 @@ namespace MailChimpSyncerExampleApp
             Output("Done!");
             Output("Press enter to exit...");
             Console.ReadLine();
+
+            //Note it is also possible to set up additional fields in MailChimp and then set those fields through MailChimpSyncer. For
+            //example, if you've set up additional text fields in Mailchimp with Merge Tags "CITY" and "JOB" you can set those fields
+            //when creating a Contact as follows:
+            //
+            //new Contact("Ben", "Wyatt", "ben.wyatt@parksdept.com", ("CITY", "Partridge"), ("JOB", "Mayor"));
         }
 
         static void Output(string message, bool isTerminal = false)
