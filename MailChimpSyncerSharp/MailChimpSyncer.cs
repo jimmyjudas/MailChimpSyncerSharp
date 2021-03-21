@@ -42,19 +42,22 @@ namespace MailChimpSyncerSharp
         public async Task UpdateMailChimp(IEnumerable<Contact> contactsToSync, string tagName, string listName)
         {
             //Add additional merge fields to list to sync
-            var additionalFieldKeys = contactsToSync.SelectMany(x => x.AdditionalMergeFields.Keys).Distinct();
-            foreach (var key in additionalFieldKeys)
-            {
-                if (!_mergeFieldsToSync.Any(x => x.FieldName == key))
+            if (contactsToSync.Any(x => x.AdditionalMergeFields != null))
+            { 
+                var additionalFieldKeys = contactsToSync.SelectMany(x => x.AdditionalMergeFields.Keys).Distinct();
+                foreach (var key in additionalFieldKeys)
                 {
-                    _mergeFieldsToSync.Add((key, new Func<Contact, string>(c =>
+                    if (!_mergeFieldsToSync.Any(x => x.FieldName == key))
                     {
-                        if (c.AdditionalMergeFields != null && c.AdditionalMergeFields.ContainsKey(key))
+                        _mergeFieldsToSync.Add((key, new Func<Contact, string>(c =>
                         {
-                            return c.AdditionalMergeFields[key];
-                        }
-                        return null;
-                    })));
+                            if (c.AdditionalMergeFields != null && c.AdditionalMergeFields.ContainsKey(key))
+                            {
+                                return c.AdditionalMergeFields[key];
+                            }
+                            return null;
+                        })));
+                    }
                 }
             }
             
