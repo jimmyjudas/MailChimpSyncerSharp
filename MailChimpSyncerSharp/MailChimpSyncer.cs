@@ -39,7 +39,7 @@ namespace MailChimpSyncerSharp
         /// <param name="tagName">The tag name with which the contacts should be tagged</param>
         /// <param name="listName">The name of the MailChimp list to sync with</param>
         /// <returns></returns>
-        public async Task UpdateMailChimp(IEnumerable<Contact> contactsToSync, string tagName, string listName)
+        public async Task<MailChimpUpdateReport> UpdateMailChimp(IEnumerable<Contact> contactsToSync, string tagName, string listName)
         {
             //Add additional merge fields to list to sync
             if (contactsToSync.Any(x => x.AdditionalMergeFields != null))
@@ -68,7 +68,7 @@ namespace MailChimpSyncerSharp
             if (list == null)
             {
                 _loggerAction.Invoke($"List \"{listName}\" cannot be found", true);
-                return;
+                return null;
             }
 
             //Get list members
@@ -80,6 +80,8 @@ namespace MailChimpSyncerSharp
             int originalUnsubscribedMailChimpContactCount = mailChimpContacts.Count(x => x.Status == Status.Unsubscribed);
 
             List<Contact> contactsToSyncCopy = contactsToSync.ToList();
+
+            MailChimpUpdateReport report = new MailChimpUpdateReport();
 
             //Go through all the contacts in MailChimp, adjusting tags if needed
             foreach (Member mailChimpContact in mailChimpContacts)
@@ -94,17 +96,24 @@ namespace MailChimpSyncerSharp
                         await AddOrRemoveTagOnMailChimpContact(list.Id, mailChimpContact, tagName, ModifierFlag.Add);
                     }
 
+                    //Now check the other information for the contact (e.g. name) matches that given in the list to sync
                     bool needsUpdate = false;
                     foreach (var field in _mergeFieldsToSync)
                     {
                         needsUpdate |= UpdateMergeFieldIfNeeded(mailChimpContact, field.FieldName, field.ContactValue(matchingContactToSync));
                     }
-
                     if (needsUpdate)
                     {
                         await _mailChimpManager.Members.AddOrUpdateAsync(list.Id, mailChimpContact);
                     }
 
+                    //Record if the contact that according to the sync list should be subscribed is already unsubscribed in MailChimp
+                    if (mailChimpContact.Status == Status.Unsubscribed)
+                    {
+                        report.UnsubscribedEmails.Add(mailChimpContact.EmailAddress);
+                    }
+
+                    //This contact has been successfully processed, so remove it from our list of contacts that need processing
                     contactsToSyncCopy.Remove(matchingContactToSync);
                 }
                 else
@@ -125,13 +134,15 @@ namespace MailChimpSyncerSharp
                 {
                     member.MergeFields.Add(field.FieldName, field.ContactValue(contactToSync));
                 }
-                await _mailChimpManager.Members.AddOrUpdateAsync(list.Id, member);
+                    await _mailChimpManager.Members.AddOrUpdateAsync(list.Id, member);
 
                 await AddOrRemoveTagOnMailChimpContact(list.Id, member, tagName, ModifierFlag.Add);
             }
 
             //Check that we have the same contacts in MailChimp with the relevant tag as we did in the list to sync
             await ValidateMailChimpState(list.Id, tagName, contactsToSync, originalMailChimpContactCount, originalUnsubscribedMailChimpContactCount);
+
+            return report;
         }
 
         private async Task ValidateMailChimpState(string listId, string tagName, IEnumerable<Contact> contactsToSync,
@@ -237,7 +248,7 @@ namespace MailChimpSyncerSharp
             if (string.IsNullOrEmpty(value))
             {
                 return null;
-            }
+        }
 
             return value;
         }
@@ -249,5 +260,14 @@ namespace MailChimpSyncerSharp
             _loggerAction.Invoke(message, false);
             _loggerAction.Invoke("THIS ERROR HAS OCCURRED AFTER PROCESSING MAILCHIMP. IT IS NOW IN AN UNKNOWN STATE. Do you need to do a manual MailChimp update?", true);
         }
+    }
+
+    public class MailChimpUpdateReport
+    {
+        /// <summary>
+        /// Email addresses that were already unsubscribed in MailChimp. This list is provided in case you want to update the database that
+        /// was used to produce the sync list so that your database reflects the contact's true preference
+        /// </summary>
+        public List<string> UnsubscribedEmails { get; internal set; } = new List<string>();
     }
 }
