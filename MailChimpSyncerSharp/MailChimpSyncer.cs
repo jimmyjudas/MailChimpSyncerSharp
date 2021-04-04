@@ -1,4 +1,5 @@
 ﻿using MailChimp.Net;
+using MailChimp.Net.Core;
 using MailChimp.Net.Interfaces;
 using MailChimp.Net.Models;
 using System;
@@ -126,6 +127,8 @@ namespace MailChimpSyncerSharp
                 }
             }
 
+            List<Contact> contactsSynced = contactsToSync.ToList();
+
             //Now we are just left with the contacts to sync that weren't in MailChimp. These need adding to MailChimp with the correct tag
             foreach (var contactToSync in contactsToSyncCopy)
             {
@@ -134,13 +137,32 @@ namespace MailChimpSyncerSharp
                 {
                     member.MergeFields.Add(field.FieldName, field.ContactValue(contactToSync));
                 }
+                try
+                {
                     await _mailChimpManager.Members.AddOrUpdateAsync(list.Id, member);
+                }
+                catch (MailChimpException e)
+                {
+                    //Contact could not be added, so remove them from the sync list, otherwise the validation will fail later
+                    contactsSynced.Remove(contactToSync);
+
+                    if (e.Title.Contains("Forgotten Email Not Subscribed"))
+                    {
+                        report.PreviouslyDeletedEmails.Add(contactToSync.Email);
+                        continue;
+                    }
+                    else if (e.Title.Contains("Invalid Resource") && e.Detail.Contains("looks fake or invalid"))
+                    {
+                        report.InvalidEmails.Add(contactToSync.Email);
+                        continue;
+                    }
+                }
 
                 await AddOrRemoveTagOnMailChimpContact(list.Id, member, tagName, ModifierFlag.Add);
             }
 
             //Check that we have the same contacts in MailChimp with the relevant tag as we did in the list to sync
-            await ValidateMailChimpState(list.Id, tagName, contactsToSync, originalMailChimpContactCount, originalUnsubscribedMailChimpContactCount);
+            await ValidateMailChimpState(list.Id, tagName, contactsSynced, originalMailChimpContactCount, originalUnsubscribedMailChimpContactCount);
 
             return report;
         }
@@ -262,8 +284,22 @@ namespace MailChimpSyncerSharp
         }
     }
 
+    /// <summary>
+    /// Results from the MailChimp update, such as which email addresses MailChimp flagged as invalid
+    /// </summary>
     public class MailChimpUpdateReport
     {
+        /// <summary>
+        /// Email addresses that cannot be added as they have been previously deleted permanently from your MailChimp audience. In general, 
+        /// deleting permanently is a bad idea for this reason.
+        /// </summary>
+        public List<string> PreviouslyDeletedEmails { get; internal set; } = new List<string>();
+
+        /// <summary>
+        /// Email addresses that MailChimp reported as invalid
+        /// </summary>
+        public List<string> InvalidEmails { get; internal set; } = new List<string>();
+
         /// <summary>
         /// Email addresses that were already unsubscribed in MailChimp. This list is provided in case you want to update the database that
         /// was used to produce the sync list so that your database reflects the contact's true preference
