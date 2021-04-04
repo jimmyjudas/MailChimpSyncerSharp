@@ -203,7 +203,7 @@ namespace MailChimpSyncerSharp
                 //Check that the MailChimp contacts' information have been updated to match the info in the sync list
                 foreach (var field in _mergeFieldsToSync)
                 {
-                    if (GetMergeFieldValue(mailChimpContact, field.FieldName) != field.ContactValue(matchingContactToSync))
+                    if (!AreFieldValuesTheSame(GetMergeFieldValue(mailChimpContact, field.FieldName), field.ContactValue(matchingContactToSync)))
                     {
                         mismatchedInfo.Add($"{mailChimpContact.EmailAddress}: "
                                           + $"MailChimp field '{field.FieldName}' ({GetMergeFieldValue(mailChimpContact, field.FieldName)}) does not match "
@@ -253,7 +253,7 @@ namespace MailChimpSyncerSharp
 
         private bool UpdateMergeFieldIfNeeded(Member mailChimpContact, string mergeFieldName, string value)
         {
-            if (GetMergeFieldValue(mailChimpContact, mergeFieldName) != value)
+            if (!AreFieldValuesTheSame(GetMergeFieldValue(mailChimpContact, mergeFieldName), value))
             {
                 mailChimpContact.MergeFields[mergeFieldName] = value ?? string.Empty; //We clear the value in MailChimp by setting to an empty string, not null
                 return true;
@@ -266,13 +266,15 @@ namespace MailChimpSyncerSharp
         {
             string value = mailChimpContact.MergeFields.ContainsKey(mergeFieldName) ? mailChimpContact.MergeFields[mergeFieldName] as string : null;
 
-            //MailChimp will return an empty string for empty fields, whereas empty fields will be null for us
-            if (string.IsNullOrEmpty(value))
-            {
-                return null;
+            return value;
         }
 
-            return value;
+        private bool AreFieldValuesTheSame(string fromMailChimp, string fromSyncList)
+        {
+            //Empty values from the MailChimp API are returned as an empty string, so allow this to count as null
+            return fromMailChimp == fromSyncList
+                   ||
+                   (fromMailChimp == string.Empty && fromSyncList == null);
         }
 
         #endregion
