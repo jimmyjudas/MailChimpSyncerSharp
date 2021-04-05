@@ -276,9 +276,7 @@ namespace MailChimpSyncerSharp
 
         private string GetMergeFieldValue(Member mailChimpContact, string mergeFieldName)
         {
-            string value = mailChimpContact.MergeFields.ContainsKey(mergeFieldName) ? mailChimpContact.MergeFields[mergeFieldName] as string : null;
-
-            return value;
+            return mailChimpContact.MergeFields.ContainsKey(mergeFieldName) ? mailChimpContact.MergeFields[mergeFieldName] as string : null;
         }
 
         private bool AreFieldValuesTheSame(string fromMailChimp, string fromSyncList)
