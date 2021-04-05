@@ -39,7 +39,8 @@ namespace MailChimpSyncerSharp
         /// <param name="contactsToSync">The contacts to sync</param>
         /// <param name="tagName">The tag name with which the contacts should be tagged</param>
         /// <param name="listName">The name of the MailChimp list to sync with</param>
-        /// <returns></returns>
+        /// <returns>A report about which email addresses were invalid, which emails already existed in MailChimp but were unsubscribed, and
+        /// which emails had previously been permanently deleted from the MailChimp audience and so can not be re-added.</returns>
         public async Task<MailChimpUpdateReport> UpdateMailChimp(IEnumerable<Contact> contactsToSync, string tagName, string listName)
         {
             //Add additional merge fields to list to sync

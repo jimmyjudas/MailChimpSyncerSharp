@@ -42,8 +42,15 @@ namespace MailChimpSyncerExampleApp
 
             //Finally, re-add a contact to check that we can add tags to existing contacts
             contactsToSync.Add(leslie);
+            contactsToSync.Add(new Contact("Burt", "Macklin", "hdsjkfnd@sjknjkadd")); //Also try and add an invalid email address
             Output("Updating one more time...");
-            await mailChimpSyncer.UpdateMailChimp(contactsToSync, tagName, listName);
+            MailChimpUpdateReport report = await mailChimpSyncer.UpdateMailChimp(contactsToSync, tagName, listName);
+
+            //Note that MailChimpSyncer also returns a report about which email addresses were invalid, which emails already existed in MailChimp but 
+            //were unsubscribed, and which emails had previously been permanently deleted from the MailChimp audience and so can not be re-added. For
+            //example, we would expect there to have been 1 invalid email in the last sync:
+            Output($"The last sync contained {report.InvalidEmails.Count} invalid email that was ignored by MailChimp");
+            Output("");
 
             Output("Done!");
             Output("Press enter to exit...");
