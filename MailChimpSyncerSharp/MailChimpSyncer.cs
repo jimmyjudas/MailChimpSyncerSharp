@@ -136,7 +136,11 @@ namespace MailChimpSyncerSharp
                 var member = new Member { EmailAddress = contactToSync.Email, StatusIfNew = Status.Subscribed };
                 foreach (var field in _mergeFieldsToSync)
                 {
-                    member.MergeFields.Add(field.FieldName, field.ContactValue(contactToSync));
+                    string fieldValue = field.ContactValue(contactToSync);
+                    if (fieldValue != null)
+                    {
+                        member.MergeFields.Add(field.FieldName, fieldValue);
+                    }
                 }
                 try
                 {
