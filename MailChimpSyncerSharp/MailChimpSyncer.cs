@@ -156,7 +156,14 @@ namespace MailChimpSyncerSharp
                         report.PreviouslyDeletedEmails.Add(contactToSync.Email);
                         continue;
                     }
-                    else if (e.Title.Contains("Invalid Resource") && e.Detail.Contains("looks fake or invalid"))
+                    else if (e.Title.Contains("Invalid Resource") 
+                             && 
+                             (
+                                e.Detail.Contains("looks fake or invalid")
+                                ||
+                                e.Detail.Contains("provide a valid email address")
+                             )
+                            )
                     {
                         report.InvalidEmails.Add(contactToSync.Email);
                         continue;
