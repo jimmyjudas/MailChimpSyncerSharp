@@ -12,6 +12,7 @@ namespace MailChimpSyncerExampleApp
         {
             //Create some new contacts to sync
             Contact leslie = new Contact("Leslie", "Knope", "leslie.knope@parksdept.com");
+            Contact ben = new Contact("Ben", "Wyatt", "ben.wyatt@parksdept.com", addr1: "ABC Street", city: "Partridge", state: "MN", zip: "12345", country: "US");
             List<Contact> contactsToSync = new List<Contact>
             {
                 leslie,
@@ -20,6 +21,7 @@ namespace MailChimpSyncerExampleApp
                 new Contact("Andy", "Dwyer", "andy.dwyer@parksdept.com"),
                 new Contact("Ann", "Perkins", "ann.perkins@parksdept.com"),
                 new Contact("Tom", "Haverford", "tom.haverford@parksdept.com"),
+                ben
             };
 
             string tagName = "TestTag";
@@ -35,14 +37,29 @@ namespace MailChimpSyncerExampleApp
 
             //Now make some changes to the list of contacts and resync. MailChimpSyncer will verify that these changes have been made before
             //returning successfully
+            
             contactsToSync.Remove(leslie); //This contact will be untagged
             contactsToSync.Single(x => x.LastName == "Ludgate").LastName = "Ludgate-Dwyer"; //This contact will remain tagged, and have its last name updated
+
+            //This contact will remain tagged, and have its address updated
+            contactsToSync.Remove(ben);
+            ben = new Contact(ben.FirstName, ben.LastName, ben.Email, addr1: "Bealey Ave", city: "Pawnee", state: "IN", zip: "6789", country: "US");
+            contactsToSync.Add(ben); 
+
             Output("Updating MailChimp again...");
             await mailChimpSyncer.UpdateMailChimp(contactsToSync, tagName, listName);
 
-            //Finally, re-add a contact to check that we can add tags to existing contacts
-            contactsToSync.Add(leslie);
+            //A few final changes
+            
+            contactsToSync.Add(leslie); //Re-add a contact to check that we can add tags to existing contacts
+
+            //This contact will remain tagged, and have its address cleared
+            contactsToSync.Remove(ben);
+            ben = new Contact(ben.FirstName, ben.LastName, ben.Email);
+            contactsToSync.Add(ben);
+
             contactsToSync.Add(new Contact("Burt", "Macklin", "hdsjkfnd@sjknjkadd")); //Also try and add an invalid email address
+
             Output("Updating one more time...");
             MailChimpUpdateReport report = await mailChimpSyncer.UpdateMailChimp(contactsToSync, tagName, listName);
 

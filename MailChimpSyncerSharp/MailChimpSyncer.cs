@@ -2,6 +2,7 @@
 using MailChimp.Net.Core;
 using MailChimp.Net.Interfaces;
 using MailChimp.Net.Models;
+using Newtonsoft.Json.Linq;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,10 +15,11 @@ namespace MailChimpSyncerSharp
         private IMailChimpManager _mailChimpManager;
         private Action<string, bool> _loggerAction;
         
-        private List<(string FieldName, Func<Contact, string> ContactValue)> _mergeFieldsToSync = new List<(string, Func<Contact, string>)>
+        private List<(string FieldName, Func<Contact, object> ContactValue)> _mergeFieldsToSync = new List<(string, Func<Contact, object>)>
         {
             ("FNAME", new Func<Contact, string>(c => c.FirstName)),
-            ("LNAME", new Func<Contact, string>(c => c.LastName))
+            ("LNAME", new Func<Contact, string>(c => c.LastName)),
+            ("ADDRESS", new Func<Contact, object>(c => c.Address))
         };
 
         /// <param name="apiKey">The API key for your MailChimp account, which can be generated through MailChimp (Account > Extras > API Keys)</param>
@@ -136,7 +138,7 @@ namespace MailChimpSyncerSharp
                 var member = new Member { EmailAddress = contactToSync.Email, StatusIfNew = Status.Subscribed };
                 foreach (var field in _mergeFieldsToSync)
                 {
-                    string fieldValue = field.ContactValue(contactToSync);
+                    object fieldValue = field.ContactValue(contactToSync);
                     if (fieldValue != null)
                     {
                         member.MergeFields.Add(field.FieldName, fieldValue);
@@ -215,7 +217,7 @@ namespace MailChimpSyncerSharp
                 //Check that the MailChimp contacts' information have been updated to match the info in the sync list
                 foreach (var field in _mergeFieldsToSync)
                 {
-                    if (!AreFieldValuesTheSame(GetMergeFieldValue(mailChimpContact, field.FieldName), field.ContactValue(matchingContactToSync)))
+                    if (!AreFieldValuesTheSame(GetMergeFieldValue(mailChimpContact, field.FieldName), field.ContactValue(matchingContactToSync)?.ToString()))
                     {
                         mismatchedInfo.Add($"{mailChimpContact.EmailAddress}: "
                                           + $"MailChimp field '{field.FieldName}' ({GetMergeFieldValue(mailChimpContact, field.FieldName)}) does not match "
@@ -263,9 +265,9 @@ namespace MailChimpSyncerSharp
 
         #region Merge Fields
 
-        private bool UpdateMergeFieldIfNeeded(Member mailChimpContact, string mergeFieldName, string value)
+        private bool UpdateMergeFieldIfNeeded(Member mailChimpContact, string mergeFieldName, object value)
         {
-            if (!AreFieldValuesTheSame(GetMergeFieldValue(mailChimpContact, mergeFieldName), value))
+            if (!AreFieldValuesTheSame(GetMergeFieldValue(mailChimpContact, mergeFieldName), value?.ToString()))
             {
                 mailChimpContact.MergeFields[mergeFieldName] = value ?? string.Empty; //We clear the value in MailChimp by setting to an empty string, not null
                 return true;
@@ -276,7 +278,16 @@ namespace MailChimpSyncerSharp
 
         private string GetMergeFieldValue(Member mailChimpContact, string mergeFieldName)
         {
-            return mailChimpContact.MergeFields.ContainsKey(mergeFieldName) ? mailChimpContact.MergeFields[mergeFieldName] as string : null;
+            object value = mailChimpContact.MergeFields.ContainsKey(mergeFieldName) ? mailChimpContact.MergeFields[mergeFieldName] : null;
+
+            //Is this the Address field?
+            if (value is JObject addressJObject) 
+            {
+                var addressDictionary = addressJObject.ToObject<AddressDictionary>();
+                return addressDictionary.ToString();
+            }
+
+            return value as string;
         }
 
         private bool AreFieldValuesTheSame(string fromMailChimp, string fromSyncList)
