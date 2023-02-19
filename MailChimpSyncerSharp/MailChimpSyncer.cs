@@ -74,7 +74,7 @@ namespace MailChimpSyncerSharp
             }
 
             //Get list members
-            var mailChimpContacts = await _mailChimpManager.Members.GetAllAsync(list.Id);
+            var mailChimpContacts = await GetAllMailChimpContactsIgnoringLimitAsync(list.Id);
 
             int originalMailChimpContactCount = mailChimpContacts.Count(x => MailChimpContactHasTag(x, tagName));
             _loggerAction.Invoke($"\t\tMailChimp contains {originalMailChimpContactCount} contacts with this tag before this update", false);
@@ -183,7 +183,7 @@ namespace MailChimpSyncerSharp
             int originalMailChimpContactCount, int originalUnsubscribedMailChimpContactCount)
         {
             //First get the MailChimp contacts again to check we have changed the remote list, not just a local copy
-            IEnumerable<Member> mailChimpContacts = await _mailChimpManager.Members.GetAllAsync(listId);
+            IEnumerable<Member> mailChimpContacts = await GetAllMailChimpContactsIgnoringLimitAsync(listId);
 
             //We should not have any more unsubscribed contacts than we started with
             int newUnsubscribedMailChimpContactCount = mailChimpContacts.Count(x => x.Status == Status.Unsubscribed);
@@ -197,6 +197,9 @@ namespace MailChimpSyncerSharp
             var mailChimpContactsWithRelevantTag = mailChimpContacts.Where(x => MailChimpContactHasTag(x, tagName));
             if (mailChimpContactsWithRelevantTag.Count() != contactsToSync.Count())
             {
+                //DEBUG
+                //var inMailChimpButNotInSyncList = mailChimpContactsWithRelevantTag.Where(x => !contactsToSync.Select(y => y.Email).Contains(x.EmailAddress)).ToArray();
+                //var inSyncListButNotInMailChimp = contactsToSync.Where(x => !mailChimpContactsWithRelevantTag.Select(y => y.EmailAddress).Contains(x.Email)).ToArray();
                 FailAfterMailChimpRun($"Number of MailChimp contacts with relevant tag ({mailChimpContactsWithRelevantTag.Count()}) does not match sync list count ({contactsToSync.Count()})");
                 return;
             }
@@ -237,6 +240,24 @@ namespace MailChimpSyncerSharp
             }
 
             _loggerAction.Invoke($"Validation passed! MailChimp now contains *{mailChimpContactsWithRelevantTag.Count()}* contacts with this tag. (Was *{originalMailChimpContactCount}*)\r\n", false);
+        }
+
+        private async Task<IEnumerable<Member>> GetAllMailChimpContactsIgnoringLimitAsync(string listId)
+        {
+            List<Member> allContacts = new List<Member>();
+            IEnumerable<Member> contacts;
+
+            int mailChimpLimit = 1000; //MailChimp only allows us to fetch this many records at a time
+            int currentOffset = 0;
+            do
+            {
+                contacts = await _mailChimpManager.Members.GetAllAsync(listId, new MemberRequest { Offset = currentOffset, Limit = mailChimpLimit });
+                allContacts.AddRange(contacts);
+                currentOffset += mailChimpLimit;
+            }
+            while (contacts.Count() == mailChimpLimit);
+
+            return allContacts;
         }
 
         #region Tags
